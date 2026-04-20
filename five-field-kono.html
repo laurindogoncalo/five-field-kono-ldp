@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Five Field Kono</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --board-bg: #111;
+    --line: #3a2e1e;
+    --line-glow: #c8922a;
+    --p1: #e8c87a;
+    --p1-dark: #a07830;
+    --p2: #e8e8e8;
+    --p2-dark: #888;
+    --selected: #f0e040;
+    --valid: #4caf8a;
+    --text: #d4c4a0;
+    --accent: #c8922a;
+    --panel: #161410;
+    --win-bg: rgba(0,0,0,0.88);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Space Mono', monospace;
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 50% 0%, rgba(200,146,42,0.08) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 60% at 100% 100%, rgba(200,146,42,0.05) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  h1 {
+    font-family: 'Noto Serif KR', serif;
+    font-size: clamp(1.2rem, 3vw, 1.8rem);
+    letter-spacing: 0.25em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    text-shadow: 0 0 30px rgba(200,146,42,0.4);
+  }
+
+  .subtitle {
+    font-size: 0.65rem;
+    letter-spacing: 0.3em;
+    color: #554433;
+    margin-bottom: 24px;
+    text-transform: uppercase;
+  }
+
+  .game-wrapper {
+    display: flex;
+    gap: 28px;
+    align-items: center;
+  }
+
+  /* SIDE PANELS */
+  .panel {
+    width: 130px;
+    background: var(--panel);
+    border: 1px solid #2a2010;
+    border-radius: 4px;
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .player-card {
+    border: 1px solid #2a2010;
+    border-radius: 3px;
+    padding: 10px;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .player-card.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 16px rgba(200,146,42,0.2);
+  }
+
+  .player-card.active::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+  }
+
+  .player-label {
+    font-size: 0.55rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #554433;
+    margin-bottom: 6px;
+  }
+
+  .player-name {
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .player-card.p1 .player-name { color: var(--p1); }
+  .player-card.p2 .player-name { color: var(--p2); }
+
+  .player-pieces {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-top: 8px;
+  }
+
+  .piece-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .piece-dot.p1 { background: var(--p1); }
+  .piece-dot.p2 { background: var(--p2); }
+  .piece-dot.placed { opacity: 0.2; }
+
+  .turn-indicator {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 6px;
+    border-radius: 2px;
+    background: rgba(200,146,42,0.08);
+    color: var(--accent);
+    border: 1px solid rgba(200,146,42,0.15);
+  }
+
+  .btn-reset {
+    background: transparent;
+    border: 1px solid #3a2e1e;
+    color: #554433;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 8px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s;
+  }
+
+  .btn-reset:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(200,146,42,0.06);
+  }
+
+  /* BOARD */
+  .board-container {
+    position: relative;
+  }
+
+  canvas#lines {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+    border-radius: 4px;
+  }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(5, 72px);
+    grid-template-rows: repeat(5, 72px);
+    gap: 0;
+    position: relative;
+    background: var(--board-bg);
+    border: 1px solid #2a2010;
+    border-radius: 4px;
+    box-shadow:
+      0 0 0 1px #1a1408,
+      0 20px 60px rgba(0,0,0,0.6),
+      inset 0 0 60px rgba(0,0,0,0.3);
+  }
+
+  .cell {
+    width: 72px;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.15s;
+  }
+
+  .cell:hover { background: rgba(200,146,42,0.04); }
+
+  .cell.valid-move::after {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(76,175,138,0.25);
+    border: 2px solid var(--valid);
+    animation: pulse 1s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.6; }
+  }
+
+  .piece {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    position: relative;
+    transition: transform 0.15s, box-shadow 0.15s;
+    cursor: pointer;
+    z-index: 2;
+  }
+
+  .piece.p1 {
+    background: radial-gradient(circle at 35% 35%, #f0da9a, var(--p1) 50%, var(--p1-dark));
+    box-shadow: 0 3px 8px rgba(0,0,0,0.5), 0 0 12px rgba(232,200,122,0.2), inset 0 1px 2px rgba(255,255,255,0.3);
+    border: 2px solid var(--p1-dark);
+  }
+
+  .piece.p2 {
+    background: radial-gradient(circle at 35% 35%, #fff, var(--p2) 50%, var(--p2-dark));
+    box-shadow: 0 3px 8px rgba(0,0,0,0.5), 0 0 12px rgba(232,232,232,0.1), inset 0 1px 2px rgba(255,255,255,0.5);
+    border: 2px solid var(--p2-dark);
+  }
+
+  .piece.selected {
+    transform: scale(1.15) translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.6), 0 0 20px rgba(240,224,64,0.5) !important;
+    border-color: var(--selected) !important;
+  }
+
+  .piece:hover:not(.selected) { transform: scale(1.05); }
+
+  /* WIN OVERLAY */
+  .win-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: var(--win-bg);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .win-overlay.show { display: flex; }
+
+  .win-box {
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 48px 56px;
+    text-align: center;
+    box-shadow: 0 0 60px rgba(200,146,42,0.3);
+    animation: winIn 0.4s cubic-bezier(0.34,1.56,0.64,1);
+  }
+
+  @keyframes winIn {
+    from { transform: scale(0.7); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  .win-title {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+
+  .win-name {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .win-name.p1 { color: var(--p1); }
+  .win-name.p2 { color: var(--p2); }
+
+  .win-sub {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    color: #554433;
+    margin-bottom: 32px;
+    text-transform: uppercase;
+  }
+
+  .btn-play-again {
+    background: var(--accent);
+    border: none;
+    color: #0d0d0d;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 12px 28px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s;
+  }
+
+  .btn-play-again:hover {
+    background: #e0a030;
+    transform: translateY(-1px);
+  }
+
+  .move-log {
+    font-size: 0.55rem;
+    color: #443322;
+    letter-spacing: 0.1em;
+    text-align: center;
+    min-height: 16px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Five Field Kono</h1>
+<p class="subtitle">Jogo Tradicional Coreano · 2 Jogadores</p>
+
+<div class="game-wrapper">
+
+  <!-- Painel Esquerdo -->
+  <div class="panel">
+    <div class="player-card p1" id="card1">
+      <div class="player-label">Jogador 1</div>
+      <div class="player-name">Ouro</div>
+      <div class="player-pieces" id="dots1"></div>
+    </div>
+    <div class="turn-indicator" id="turn-text">Vez do Jogador 1</div>
+    <div class="move-log" id="move-log">Seleciona uma peça</div>
+  </div>
+
+  <!-- Tabuleiro -->
+  <div class="board-container">
+    <canvas id="lines" width="360" height="360"></canvas>
+    <div class="board" id="board"></div>
+  </div>
+
+  <!-- Painel Direito -->
+  <div class="panel">
+    <div class="player-card p2" id="card2">
+      <div class="player-label">Jogador 2</div>
+      <div class="player-name">Prata</div>
+      <div class="player-pieces" id="dots2"></div>
+    </div>
+    <div style="height:32px"></div>
+    <button class="btn-reset" onclick="initGame()">↺ Reiniciar</button>
+  </div>
+
+</div>
+
+<!-- Overlay de Vitória -->
+<div class="win-overlay" id="win-overlay">
+  <div class="win-box">
+    <div class="win-title">Vitória</div>
+    <div class="win-name" id="win-name"></div>
+    <div class="win-sub">conquistou o território inimigo</div>
+    <button class="btn-play-again" onclick="initGame()">Jogar Novamente</button>
+  </div>
+</div>
+
+<script>
+// ── ESTADO DO JOGO ──────────────────────────────────────────────
+// O tabuleiro é uma matriz 5x5
+// 0 = vazio, 1 = Jogador 1 (ouro), 2 = Jogador 2 (prata)
+
+// Posições iniciais do Jogador 1 (linhas 3 e 4 - em baixo)
+const START_P1 = new Set();
+const START_P2 = new Set();
+
+for (let c = 0; c < 5; c++) {
+  START_P1.add(`3,${c}`);
+  START_P1.add(`4,${c}`);
+  START_P2.add(`0,${c}`);
+  START_P2.add(`1,${c}`);
+}
+
+// Movimentos diagonais possíveis no Five Field Kono
+// Cada célula tem conexões diagonais dependendo da sua posição
+function getDiagonalMoves(row, col) {
+  const moves = [];
+  const diags = [[-1,-1],[-1,1],[1,-1],[1,1]];
+  // Células com diagonal: todas, mas apenas as que têm linha diagonal desenhada
+  // No Five Field Kono, as diagonais existem em padrão xadrez
+  const hasDiag = (row + col) % 2 === 0;
+  if (hasDiag) {
+    for (const [dr, dc] of diags) {
+      const nr = row + dr;
+      const nc = col + dc;
+      if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5) {
+        moves.push([nr, nc]);
+      }
+    }
+  }
+  // Movimentos ortogonais (cima, baixo, esquerda, direita) — sempre disponíveis
+  const ortho = [[-1,0],[1,0],[0,-1],[0,1]];
+  for (const [dr, dc] of ortho) {
+    const nr = row + dr;
+    const nc = col + dc;
+    if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5) {
+      moves.push([nr, nc]);
+    }
+  }
+  return moves;
+}
+
+let board = [];
+let currentPlayer = 1;
+let selected = null; // {row, col}
+let validMoves = [];
+
+function initGame() {
+  // Criar tabuleiro inicial
+  board = [
+    [2, 2, 2, 2, 2],
+    [2, 2, 2, 2, 2],
+    [0, 0, 0, 0, 0],
+    [1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1],
+  ];
+  currentPlayer = 1;
+  selected = null;
+  validMoves = [];
+
+  document.getElementById('win-overlay').classList.remove('show');
+  renderBoard();
+  updateUI();
+  drawLines();
+}
+
+// ── RENDER ──────────────────────────────────────────────────────
+function renderBoard() {
+  const boardEl = document.getElementById('board');
+  boardEl.innerHTML = '';
+
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+
+      // Marcar casas com movimento válido
+      if (validMoves.some(([vr, vc]) => vr === r && vc === c)) {
+        cell.classList.add('valid-move');
+      }
+
+      // Adicionar peça se existir
+      if (board[r][c] !== 0) {
+        const piece = document.createElement('div');
+        const p = board[r][c];
+        piece.className = `piece p${p}`;
+        if (selected && selected.row === r && selected.col === c) {
+          piece.classList.add('selected');
+        }
+        cell.appendChild(piece);
+      }
+
+      cell.addEventListener('click', () => handleClick(r, c));
+      boardEl.appendChild(cell);
+    }
+  }
+}
+
+// ── LÓGICA DE CLIQUE ────────────────────────────────────────────
+function handleClick(r, c) {
+  const cell = board[r][c];
+
+  // Se clicou numa casa com movimento válido → mover
+  if (validMoves.some(([vr, vc]) => vr === r && vc === c)) {
+    movePiece(selected.row, selected.col, r, c);
+    return;
+  }
+
+  // Se clicou na própria peça selecionada → desselecionar
+  if (selected && selected.row === r && selected.col === c) {
+    selected = null;
+    validMoves = [];
+    renderBoard();
+    setLog('Seleciona uma peça');
+    return;
+  }
+
+  // Se clicou numa peça do jogador atual → selecionar
+  if (cell === currentPlayer) {
+    selected = { row: r, col: c };
+    const possible = getDiagonalMoves(r, c);
+    validMoves = possible.filter(([nr, nc]) => board[nr][nc] === 0);
+    renderBoard();
+    setLog(validMoves.length === 0 ? 'Sem movimentos aqui' : `${validMoves.length} movimento(s) possível(is)`);
+    return;
+  }
+
+  // Clicou noutro sítio sem sentido
+  selected = null;
+  validMoves = [];
+  renderBoard();
+  setLog('Seleciona uma peça do teu lado');
+}
+
+function movePiece(fromR, fromC, toR, toC) {
+  board[toR][toC] = board[fromR][fromC];
+  board[fromR][fromC] = 0;
+  selected = null;
+  validMoves = [];
+
+  setLog(`Jogador ${currentPlayer} moveu (${fromR},${fromC}) → (${toR},${toC})`);
+
+  if (checkWin()) {
+    renderBoard();
+    updateUI();
+    showWin(currentPlayer);
+    return;
+  }
+
+  currentPlayer = currentPlayer === 1 ? 2 : 1;
+  renderBoard();
+  updateUI();
+}
+
+// ── VITÓRIA ─────────────────────────────────────────────────────
+// Jogador 1 ganha se ocupar as posições iniciais do Jogador 2 (linhas 0 e 1)
+// Jogador 2 ganha se ocupar as posições iniciais do Jogador 1 (linhas 3 e 4)
+function checkWin() {
+  const startTarget = currentPlayer === 1 ? START_P2 : START_P1;
+  for (const key of startTarget) {
+    const [r, c] = key.split(',').map(Number);
+    if (board[r][c] !== currentPlayer) return false;
+  }
+  return true;
+}
+
+function showWin(player) {
+  const overlay = document.getElementById('win-overlay');
+  const nameEl = document.getElementById('win-name');
+  overlay.classList.add('show');
+  nameEl.textContent = player === 1 ? 'Jogador 1 · Ouro' : 'Jogador 2 · Prata';
+  nameEl.className = `win-name p${player}`;
+}
+
+// ── UI ──────────────────────────────────────────────────────────
+function updateUI() {
+  // Turno
+  const turnEl = document.getElementById('turn-text');
+  turnEl.textContent = `Vez do Jogador ${currentPlayer}`;
+
+  // Cards ativos
+  document.getElementById('card1').classList.toggle('active', currentPlayer === 1);
+  document.getElementById('card2').classList.toggle('active', currentPlayer === 2);
+
+  // Contagem de peças (dots)
+  updateDots(1);
+  updateDots(2);
+}
+
+function updateDots(player) {
+  const el = document.getElementById(`dots${player}`);
+  el.innerHTML = '';
+  // Contar peças no tabuleiro
+  let count = 0;
+  for (let r = 0; r < 5; r++)
+    for (let c = 0; c < 5; c++)
+      if (board[r][c] === player) count++;
+  for (let i = 0; i < 10; i++) {
+    const dot = document.createElement('div');
+    dot.className = `piece-dot p${player}${i >= count ? ' placed' : ''}`;
+    el.appendChild(dot);
+  }
+}
+
+function setLog(msg) {
+  document.getElementById('move-log').textContent = msg;
+}
+
+// ── LINHAS DO TABULEIRO ─────────────────────────────────────────
+function drawLines() {
+  const canvas = document.getElementById('lines');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 360, 360);
+
+  const cellSize = 72;
+  const half = cellSize / 2;
+
+  // Estilo das linhas
+  ctx.strokeStyle = '#2a2010';
+  ctx.lineWidth = 1;
+
+  // Linhas ortogonais (grade)
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      const x = c * cellSize + half;
+      const y = r * cellSize + half;
+      // direita
+      if (c < 4) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + cellSize, y); ctx.stroke(); }
+      // baixo
+      if (r < 4) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + cellSize); ctx.stroke(); }
+    }
+  }
+
+  // Linhas diagonais (apenas em células onde (r+c) % 2 === 0)
+  ctx.strokeStyle = '#2a2010';
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      if ((r + c) % 2 === 0) {
+        const x = c * cellSize + half;
+        const y = r * cellSize + half;
+        const diags = [[-1,-1],[-1,1],[1,-1],[1,1]];
+        for (const [dr, dc] of diags) {
+          const nr = r + dr;
+          const nc = c + dc;
+          if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5) {
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(nc * cellSize + half, nr * cellSize + half);
+            ctx.stroke();
+          }
+        }
+      }
+    }
+  }
+
+  // Pontos nas intersecções
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      const x = c * cellSize + half;
+      const y = r * cellSize + half;
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#3a2e1e';
+      ctx.fill();
+    }
+  }
+}
+
+// ── INICIAR ─────────────────────────────────────────────────────
+initGame();
+</script>
+</body>
+</html>
